@@ -6,7 +6,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
-const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+const OPENAI_API_KEY = Deno.env.get("OPEN_API_KEY");
 
 const SYSTEM_PROMPT = `Tu es un expert en création de landing pages pour startups SaaS. Ton rôle est d'aider les utilisateurs à créer des landing pages performantes en leur posant des questions pertinentes sur leur entreprise, leur marché, et leur proposition de valeur.
 
@@ -58,7 +58,7 @@ Deno.serve(async (req: Request) => {
 
   try {
     if (!OPENAI_API_KEY) {
-      throw new Error("OPENAI_API_KEY is not set");
+      throw new Error("OPEN_API_KEY is not set");
     }
 
     const { messages }: RequestBody = await req.json();
