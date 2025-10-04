@@ -4,6 +4,8 @@ import { Input } from './ui/input';
 import { Card } from './ui/card';
 import { Send, Bot, User } from 'lucide-react';
 import { ScrollArea } from './ui/scroll-area';
+import { supabase } from '../lib/supabase';
+import { toast } from 'sonner';
 
 export interface Message {
   id: string;
@@ -37,71 +39,48 @@ export function ChatInterface({ onLandingPageUpdate }: ChatInterfaceProps) {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const generateAIResponse = (userMessage: string): { response: string; landingPageData?: any } => {
-    const message = userMessage.toLowerCase();
-    
-    if (message.includes('fintech') || message.includes('finance') || message.includes('paiement')) {
-      const landingPageData = {
-        companyName: 'FinTechPro',
-        tagline: 'Révolutionnez vos paiements',
-        description: 'La solution de paiement nouvelle génération pour les entreprises modernes',
-        heroTitle: 'Simplifiez vos transactions financières',
-        heroSubtitle: 'FinTechPro offre une plateforme sécurisée et intuitive pour gérer tous vos paiements en ligne',
-        features: [
-          { title: 'Sécurité maximale', description: 'Chiffrement de niveau bancaire pour toutes vos transactions' },
-          { title: 'API simple', description: 'Intégration en quelques lignes de code' },
-          { title: 'Analytics avancés', description: 'Tableaux de bord détaillés pour suivre vos performances' }
-        ],
-        cta: 'Commencer gratuitement',
-        theme: 'fintech'
+  const callAIAPI = async (userMessage: string): Promise<{ message: string; landingPageData?: any }> => {
+    try {
+      const conversationHistory = messages
+        .filter(m => m.sender === 'user' || m.sender === 'ai')
+        .map(m => ({
+          role: m.sender === 'user' ? 'user' : 'assistant',
+          content: m.text
+        }));
+
+      conversationHistory.push({
+        role: 'user',
+        content: userMessage
+      });
+
+      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-chat`;
+      const headers = {
+        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        'Content-Type': 'application/json',
       };
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ messages: conversationHistory })
+      });
+
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+
+      const data = await response.json();
       return {
-        response: "Excellent ! Une fintech qui révolutionne les paiements. J'ai généré une première version de votre landing page avec un focus sur la sécurité et la simplicité d'intégration. Voulez-vous que je modifie certains éléments ?",
-        landingPageData
+        message: data.message,
+        landingPageData: data.landingPageData
       };
-    } else if (message.includes('saas') || message.includes('logiciel') || message.includes('productivité')) {
-      const landingPageData = {
-        companyName: 'ProductiFlow',
-        tagline: 'Boostez votre productivité',
-        description: 'L\'outil SaaS qui transforme votre façon de travailler',
-        heroTitle: 'Optimisez votre workflow',
-        heroSubtitle: 'ProductiFlow centralise tous vos outils de productivité dans une interface simple et puissante',
-        features: [
-          { title: 'Centralisation', description: 'Tous vos outils dans un seul endroit' },
-          { title: 'Automatisation', description: 'Automatisez vos tâches répétitives' },
-          { title: 'Collaboration', description: 'Travaillez en équipe en temps réel' }
-        ],
-        cta: 'Essayer gratuitement',
-        theme: 'saas'
-      };
+    } catch (error) {
+      console.error('Error calling AI API:', error);
+      toast.error('Erreur de connexion à l\'IA');
       return {
-        response: "Parfait ! Un SaaS de productivité, c'est un marché très porteur. J'ai créé une landing page qui met l'accent sur l'efficacité et la collaboration. Que pensez-vous du positionnement ?",
-        landingPageData
-      };
-    } else if (message.includes('e-commerce') || message.includes('boutique') || message.includes('vente')) {
-      const landingPageData = {
-        companyName: 'ShopFlow',
-        tagline: 'Votre boutique, partout',
-        description: 'Créez et gérez votre e-commerce en quelques clics',
-        heroTitle: 'Lancez votre boutique en ligne',
-        heroSubtitle: 'ShopFlow vous donne tous les outils pour créer, gérer et développer votre e-commerce',
-        features: [
-          { title: 'Templates personnalisables', description: 'Designs professionnels adaptés à votre marque' },
-          { title: 'Gestion des stocks', description: 'Suivez vos inventaires en temps réel' },
-          { title: 'Paiements sécurisés', description: 'Acceptez tous les moyens de paiement' }
-        ],
-        cta: 'Créer ma boutique',
-        theme: 'ecommerce'
-      };
-      return {
-        response: "Super ! Une plateforme e-commerce, le timing est parfait. J'ai conçu une landing page qui met en avant la facilité de création et la gestion complète. Souhaitez-vous ajuster le message principal ?",
-        landingPageData
+        message: "Désolé, je rencontre un problème technique. Pouvez-vous réessayer ?"
       };
     }
-    
-    return {
-      response: "Merci pour ces informations ! Pouvez-vous me donner plus de détails sur votre secteur d'activité, votre proposition de valeur unique et vos utilisateurs cibles ? Plus vous me donnez d'informations, plus je peux personnaliser votre landing page."
-    };
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -121,13 +100,12 @@ export function ChatInterface({ onLandingPageUpdate }: ChatInterfaceProps) {
     setInput('');
     setIsTyping(true);
 
-    // Simulate AI thinking time
-    setTimeout(() => {
-      const { response, landingPageData } = generateAIResponse(userInput);
-      
+    try {
+      const { message, landingPageData } = await callAIAPI(userInput);
+
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
-        text: response,
+        text: message,
         sender: 'ai',
         timestamp: new Date()
       };
@@ -138,7 +116,10 @@ export function ChatInterface({ onLandingPageUpdate }: ChatInterfaceProps) {
       if (landingPageData) {
         onLandingPageUpdate(landingPageData);
       }
-    }, 1500);
+    } catch (error) {
+      console.error('Error in handleSubmit:', error);
+      setIsTyping(false);
+    }
   };
 
   return (
