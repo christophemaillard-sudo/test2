@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { LandingPageData as DBLandingPageData, deleteLandingPage } from '../lib/supabase';
+import { toast } from 'sonner';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
@@ -34,14 +36,48 @@ interface SidebarProps {
   onTabChange: (tab: 'chat' | 'preview') => void;
   landingPageData: LandingPageData | null;
   onLandingPageUpdate: (data: LandingPageData) => void;
+  savedPages: DBLandingPageData[];
+  onPageSelect: (page: DBLandingPageData) => void;
+  onNewPage: () => void;
+  onPageDeleted: () => void;
 }
 
-export function Sidebar({ activeTab, onTabChange, landingPageData, onLandingPageUpdate }: SidebarProps) {
-  const [savedProjects] = useState([
-    { id: '1', name: 'FinTechPro', theme: 'fintech', lastModified: '2 min ago' },
-    { id: '2', name: 'ProductiFlow', theme: 'saas', lastModified: '1h ago' },
-    { id: '3', name: 'ShopFlow', theme: 'ecommerce', lastModified: 'Yesterday' },
-  ]);
+export function Sidebar({
+  activeTab,
+  onTabChange,
+  landingPageData,
+  onLandingPageUpdate,
+  savedPages,
+  onPageSelect,
+  onNewPage,
+  onPageDeleted
+}: SidebarProps) {
+  const handleDelete = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await deleteLandingPage(id);
+      toast.success('Page supprimée');
+      onPageDeleted();
+    } catch (error) {
+      console.error('Error deleting page:', error);
+      toast.error('Erreur lors de la suppression');
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'À l\'instant';
+    if (diffMins < 60) return `${diffMins} min`;
+    if (diffHours < 24) return `${diffHours}h`;
+    if (diffDays === 1) return 'Hier';
+    return `${diffDays}j`;
+  };
 
   return (
     <div className="w-64 border-r bg-muted/30 flex flex-col">
@@ -104,30 +140,53 @@ export function Sidebar({ activeTab, onTabChange, landingPageData, onLandingPage
       <div className="flex-1 flex flex-col min-h-0">
         <div className="p-4 pb-2 flex items-center justify-between">
           <h3 className="text-sm">Projets récents</h3>
-          <Button size="icon" variant="ghost" className="w-6 h-6">
+          <Button
+            size="icon"
+            variant="ghost"
+            className="w-6 h-6"
+            onClick={onNewPage}
+            title="Nouveau projet"
+          >
             <Plus className="w-3 h-3" />
           </Button>
         </div>
         <ScrollArea className="flex-1 px-4">
           <div className="space-y-2 pb-4">
-            {savedProjects.map((project) => (
-              <Card key={project.id} className="p-3 cursor-pointer hover:bg-accent">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1 min-w-0">
-                    <h4 className="text-sm truncate">{project.name}</h4>
-                    <p className="text-xs text-muted-foreground">{project.lastModified}</p>
+            {savedPages.length === 0 ? (
+              <p className="text-xs text-muted-foreground text-center py-4">
+                Aucun projet enregistré
+              </p>
+            ) : (
+              savedPages.map((page) => (
+                <Card
+                  key={page.id}
+                  className="p-3 cursor-pointer hover:bg-accent"
+                  onClick={() => onPageSelect(page)}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-sm truncate">{page.company_name}</h4>
+                      <p className="text-xs text-muted-foreground">
+                        {page.created_at ? formatDate(page.created_at) : ''}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1 ml-2">
+                      <Badge variant="secondary" className="text-xs">
+                        {page.theme}
+                      </Badge>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="w-5 h-5 text-muted-foreground hover:text-destructive"
+                        onClick={(e) => handleDelete(page.id!, e)}
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1 ml-2">
-                    <Badge variant="secondary" className="text-xs">
-                      {project.theme}
-                    </Badge>
-                    <Button size="icon" variant="ghost" className="w-5 h-5 text-muted-foreground hover:text-destructive">
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
-                  </div>
-                </div>
-              </Card>
-            ))}
+                </Card>
+              ))
+            )}
           </div>
         </ScrollArea>
       </div>
