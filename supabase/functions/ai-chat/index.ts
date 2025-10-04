@@ -6,7 +6,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
-const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
 
 const SYSTEM_PROMPT = `Tu es un expert en création de landing pages pour startups SaaS. Ton rôle est d'aider les utilisateurs à créer des landing pages performantes en leur posant des questions pertinentes sur leur entreprise, leur marché, et leur proposition de valeur.
 
@@ -57,8 +57,8 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    if (!ANTHROPIC_API_KEY) {
-      throw new Error("ANTHROPIC_API_KEY is not set");
+    if (!OPENAI_API_KEY) {
+      throw new Error("OPENAI_API_KEY is not set");
     }
 
     const { messages }: RequestBody = await req.json();
@@ -67,29 +67,33 @@ Deno.serve(async (req: Request) => {
       throw new Error("Invalid messages format");
     }
 
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    const openaiMessages = [
+      { role: "system", content: SYSTEM_PROMPT },
+      ...messages
+    ];
+
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-api-key": ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
+        "Authorization": `Bearer ${OPENAI_API_KEY}`,
       },
       body: JSON.stringify({
-        model: "claude-3-5-sonnet-20241022",
+        model: "gpt-4o",
+        messages: openaiMessages,
         max_tokens: 2048,
-        system: SYSTEM_PROMPT,
-        messages: messages,
+        temperature: 0.7,
       }),
     });
 
     if (!response.ok) {
       const error = await response.text();
-      console.error("Anthropic API error:", error);
-      throw new Error(`Anthropic API error: ${response.status}`);
+      console.error("OpenAI API error:", error);
+      throw new Error(`OpenAI API error: ${response.status}`);
     }
 
     const data = await response.json();
-    const aiResponse = data.content[0].text;
+    const aiResponse = data.choices[0].message.content;
 
     let landingPageData = null;
     let message = aiResponse;
